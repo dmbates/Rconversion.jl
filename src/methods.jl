@@ -107,6 +107,15 @@ function unsafe_vec(s::Ptr{S}) where {S<:VectorSxp}
     return unsafe_wrap(Array, dataptr(s), length(s))
 end
 
+function unsafe_matrix(s::Ptr{S})::Matrix where {S<:VectorSxp}
+    slen = length(s)
+    iszero(slen) && return Matrix{eltype(S)}(undef, 0, 0)
+    dims = getattrib(s, Const.DimSymbol)::Ptr{IntSxp}
+    ndims = length(dims)
+    ndims != 2 && return unsafe_wrap(Array, dataptr(s), slen, 1)
+    return unsafe_wrap(Array, dataptr(s), (dims[1], dims[2]))::Matrix{eltype(S)}
+end
+
 """
     unsafe_array(r::RObject{S})
     unsafe_array(s::Ptr{S})
@@ -446,17 +455,32 @@ attributes(s::RObject) = RObject(attributes(s.p))
 
 
 """
-Returns the size of an R object.
+    size(s::Ptr{<:Sxp})
+
+Return the size of an R object.
 """
-function size(s::Ptr{S}) where {S<:Sxp}
-    if isFrame(s)
-        (length(getattrib(s, Const.RowNamesSymbol)), length(s))
-    elseif isArray(s)
-        tuple(convert(Array{Int}, unsafe_vec(getattrib(s, Const.DimSymbol)))...)
-    else
-        (length(s),)
-    end
+function size(s::Ptr{S})::Tuple where {S<:Sxp}
+  isFrame(s) && return (length(getattrib(s, Symbol("row.names"))), length(s))
+  isArray(s) || return (length(s),)  # a 1-tuple of the length
+  dims = convert(Vector{Int}, unsafe_vec(getattrib(s, :dim)))
+  ndim = length(dims)
+  isone(ndim) && return (dims[1],)   # a 1-tuple
+  ndim == 2 && return (dims[1], dims[2])
+  ndim == 3 && return (dims[1], dims[2], dims[3])
+  ndim == 4 && return (dims[1], dims[2], dims[3], dims[4])
+  println(Core.stderr, "Number of dimensions too large")
+  return (length(s),)
 end
+
+# function size(s::Ptr{S}) where {S<:Sxp}
+#     if isFrame(s)
+#         (length(getattrib(s, Const.RowNamesSymbol)), length(s))
+#     elseif isArray(s)
+#         tuple(convert(Array{Int}, unsafe_vec(getattrib(s, sexp(:dim))))...)#Const.DimSymbol)))...)
+#     else
+#         (length(s),)
+#     end
+# end
 size(r::RObject) = size(r.p)
 
 """
