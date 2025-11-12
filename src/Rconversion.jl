@@ -19,20 +19,23 @@ import Base.Iterators: iterate, IteratorSize, IteratorEltype, Pairs, pairs
 
 const libR = "/Library/Frameworks/R.framework/Resources/lib/libR"
 
-# const libR = Base.OncePerProcess{String}() do
-#     lR = only(filter(contains("libR."), Libc.Libdl.dllist()))
-#     println(Core.stdout, "libR = ", lR)
-#     return lR
-# end
-
 include("types.jl")
 include("Const.jl")
-Const.load(false) # load the values of constants assuming that libR has been dlopen'd
 include("methods.jl")
 include("base.jl")
 include("default.jl")
 
+function __init__()
+    libRlist = filter(contains("libR."), Libc.Libdl.dllist())
+    if isone(length(libRlist))
+        println(Core.stdout, "Initializing global constant symbols")
+        libR = only(libRlist)
+        Const.load()
+    end
+end
+
 export
+    Const,
     CharSxp,
     CplxSxp,
     UnknownSxp,
@@ -40,8 +43,11 @@ export
     LglSxp,
     NilSxp,
     RealSxp,
+    Sxp,
     StrSxp,
     SymSxp,
+    VecSxp,
+    DimSymbol,
     NilValue,
     RObject,
     getattrib,
@@ -52,6 +58,42 @@ export
     protect,
     unprotect,
     coerceVector,
-    isReal
+    isArray,
+    isComplex,
+    isEnvironment,
+    isExpression,
+    isFactor,
+    isFrame,
+    isFree,
+    isFunction,
+    isInteger,
+    isLanguage,
+    isList,
+    isLogical,
+    isSymbol,
+    isMatrix,
+    isNewList,
+    isNull,
+    isNumeric,
+    isNumber,
+    isObject,
+    isOrdered,
+    isPairList,
+    isPrimitive,
+    isReal,
+    isS4,
+    isString,
+    isTs,
+    isUnordered,
+    isUnsorted,
+    isUserBinop,
+    isValidString,
+    isValidStringF,
+    isVector,
+    isVectorAtomic,
+    isVectorizable,
+    isVectorList,
+    unsafe_matrix,
+    unsafe_vec
 
 end
