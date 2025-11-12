@@ -310,18 +310,16 @@ function sexp(::Type{RClass{:list}}, d::AbstractDict)
 end
 
 # AbstractArray to VecSxp
-function sexp(::Type{RClass{:list}}, a::AbstractArray)
-    ra = protect(allocArray(VecSxp, size(a)...))
+function sexp(::Type{RClass{:list}}, a::AbstractArray)::Ptr{VecSxp}
+    ra = protect(allocArray(VecSxp, length(a)))
     try
-        # we want this to work even if a doesn't use one-based indexing
-        # we only care about ra having the same length (which it does)
-        for (i, idx) in zip(eachindex(ra), eachindex(a))
-            ra[i] = a[idx]
+        for (i, el) in enumerate(a)
+            ra[i] = el
         end
     finally
         unprotect(1)
     end
-    ra
+    return ra
 end
 
 # Function
