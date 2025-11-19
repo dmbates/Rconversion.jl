@@ -57,6 +57,7 @@ export
     release,
     protect,
     unprotect,
+    setnames!,
     coerceVector,
     isArray,
     isComplex,

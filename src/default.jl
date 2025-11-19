@@ -1,7 +1,9 @@
 # logic for default rcopy
 
 """
-`rcopy(r)` copies the contents of an R object into a corresponding canonical Julia type.
+    rcopy(r::RObject{S}; kwargs...) where {S<:Sxp}
+
+Copies the contents of `r` into a corresponding canonical Julia type.
 """
 rcopy(r::RObject{S}; kwargs...) where {S<:Sxp} = rcopy(r.p; kwargs...)
 

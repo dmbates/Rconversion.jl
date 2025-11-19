@@ -589,7 +589,7 @@ const SXP_TYPES = (
 
 for (i, T) in enumerate(SXP_TYPES)
     if T != Nothing
-        @eval sexpnum(::Type{$T}) = $(i-1)
+        @eval sexpnum(::Type{$T})::Int = $(i-1)
     end
 end
 

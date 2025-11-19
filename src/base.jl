@@ -310,11 +310,22 @@ function sexp(::Type{RClass{:list}}, d::AbstractDict)
 end
 
 # AbstractArray to VecSxp
+# the long if ... elseif ... end construction is to help the compiler infer the type of el
 function sexp(::Type{RClass{:list}}, a::AbstractArray)::Ptr{VecSxp}
     ra = protect(allocArray(VecSxp, length(a)))
     try
         for (i, el) in enumerate(a)
-            ra[i] = el
+            if el isa Ptr{RealSxp}
+                ra[i] = el
+            elseif el isa Ptr{IntSxp}
+                ra[i] = el
+            elseif el isa Ptr{LglSxp}
+                ra[i] = el
+            elseif el isa Ptr{StrSxp}
+                ra[i] = el
+            elseif el isa Ptr{VecSxp}
+                ra[i] = el
+            end
         end
     finally
         unprotect(1)
@@ -322,6 +333,5 @@ function sexp(::Type{RClass{:list}}, a::AbstractArray)::Ptr{VecSxp}
     return ra
 end
 
-# Function
 
 # check src/callback.jl for `sexp(::ClosSxp, ::Function)`

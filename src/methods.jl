@@ -259,17 +259,22 @@ end
 # VecSxp and ExprSxp
 
 function getindex(s::Ptr{S}, key::Integer) where {S<:Union{VecSxp,ExprSxp}}
-    sexp(ccall(:VECTOR_ELT, Ptr{UnknownSxp}, (Ptr{S}, Cint), s, key-1))
+    # additional call to sexp converts from Ptr{UnknownSxp} to Ptr{T}
+    return sexp(@ccall VECTOR_ELT(s::Ptr{S}, (key-1)::Cptrdiff_t)::Ptr{UnknownSxp})
 end
 
-function setindex!(
-    s::Ptr{S},
-    value::Ptr{T},
-    key::Integer,
-) where {S<:Union{VecSxp,ExprSxp},T<:Sxp}
+function setindex!(s::Ptr{S}, value::Ptr{T}, key::Integer)::Ptr{S} where {S<:Union{VecSxp,ExprSxp},T<:Sxp}
     1 <= key <= length(s) || throw(BoundsError())
-    ccall(:SET_VECTOR_ELT, Ptr{T}, (Ptr{S}, Cptrdiff_t, Ptr{T}), s, key-1, value)
+    return @ccall SET_VECTOR_ELT(s::Ptr{S}, (key - 1)::Cptrdiff_t, value::Ptr{T})::Ptr{S}
 end
+
+## Why is this method specified?  It should be derivable from the previous method.
+## Does SET_VECTOR_ELT return its first argument?
+function setindex!(s::Ptr{S}, value::Ptr{RealSxp}, key::Integer)::Ptr{S} where {S<:Union{VecSxp,ExprSxp}}
+    1 <= key <= length(s) || throw(BoundsError())
+    return @ccall SET_VECTOR_ELT(s::Ptr{S}, (key - 1)::Cptrdiff_t, value::Ptr{RealSxp})::Ptr{S}
+end
+
 function setindex!(s::Ptr{S}, value, key::Integer) where {S<:Union{VecSxp,ExprSxp}}
     setindex!(s, sexp(value), key)
 end
@@ -281,23 +286,23 @@ cdr(s::Ptr{S}) where {S<:PairListSxp} = sexp(ccall(:CDR, Ptr{UnknownSxp}, (Ptr{S
 car(s::Ptr{S}) where {S<:PairListSxp} = sexp(ccall(:CAR, Ptr{UnknownSxp}, (Ptr{S},), s))
 tag(s::Ptr{S}) where {S<:PairListSxp} = sexp(ccall(:TAG, Ptr{UnknownSxp}, (Ptr{S},), s))
 
-function setcar!(s::Ptr{S}, c::Ptr{T}) where {S<:PairListSxp,T<:Sxp}
-    ccall(:SETCAR, Ptr{Cvoid}, (Ptr{S}, Ptr{T}), s, c)
-    nothing
+function setcar!(s::Ptr{S}, c::Ptr{T})::Nothing where {S<:PairListSxp,T<:Sxp}
+    @ccall SETCAR(s::Ptr{S}, c::Ptr{T})::Ptr{Cvoid}
+    return nothing
 end
 setcar!(s::Ptr{S}, c::RObject{T}) where {S<:PairListSxp,T<:Sxp} = setcar!(s, sexp(c))
 
-function settag!(s::Ptr{S}, c::Ptr{T}) where {S<:PairListSxp,T<:Sxp}
-    ccall(:SET_TAG, Nothing, (Ptr{S}, Ptr{T}), s, c)
-    nothing
-end
-settag!(s::Ptr{S}, c::RObject{T}) where {S<:PairListSxp,T<:Sxp} = settag!(s, sexp(c))
-
-function setcdr!(s::Ptr{S}, c::Ptr{T}) where {S<:PairListSxp,T<:Sxp}
-    ccall(:SETCDR, Ptr{Cvoid}, (Ptr{S}, Ptr{T}), s, c)
-    nothing
+function setcdr!(s::Ptr{S}, c::Ptr{T})::Nothing where {S<:PairListSxp,T<:Sxp}
+    @ccall SETCDR(s::Ptr{S}, c::Ptr{T})::Ptr{Cvoid}
+    return nothing
 end
 setcdr!(s::Ptr{S}, c::RObject{T}) where {S<:PairListSxp,T<:Sxp} = setcdr!(s, sexp(c))
+
+function settag!(s::Ptr{S}, c::Ptr{T})::Nothing where {S<:PairListSxp,T<:Sxp}
+    @ccall SET_TAG(s::Ptr{S}, c::Ptr{T})::Ptr{Cvoid}
+    return nothing
+end
+settag!(s::Ptr{S}, c::RObject{T}) where {S<:PairListSxp,T<:Sxp} = settag!(s, sexp(c))
 
 iterate(s::Ptr{S}) where {S<:PairListSxp} = iterate(s, s)
 function iterate(s::Ptr{S}, state) where {S<:PairListSxp}
@@ -310,7 +315,6 @@ function iterate(s::RObject{S}, state) where {S<:PairListSxp}
     state == sexp(Const.NilValue) && return nothing
     RObject(car(state)), cdr(state)
 end
-
 
 # iterator for PairListSxp
 IteratorSize(x::Pairs{K,V,I,Ptr{S}}) where {K,V,I,S<:PairListSxp} = Base.SizeUnknown()
@@ -433,16 +437,21 @@ setindex!(s::Ptr{S4Sxp}, value, sym) = setindex!(s, sexp(value), sexp(SymSxp, sy
 setindex!(s::RObject{S4Sxp}, value, sym) = setindex!(sexp(s), value, sym)
 
 
-"Return a particular attribute of an RObject"
+"""
+    getattrib(s::Ptr{S}, sym::Ptr{SymSxp})
+
+Return attribute with name `sym` from an RObject
+"""
 function getattrib(s::Ptr{S}, sym::Ptr{SymSxp}) where {S<:Sxp}
-    sexp(ccall(:Rf_getAttrib, Ptr{UnknownSxp}, (Ptr{S}, Ptr{SymSxp}), s, sym))
+    # the call to sexp on a Ptr{UnknownSxp} returns a Ptr{T} where T is a concrete Sxp type
+    return sexp(@ccall Rf_getAttrib(s::Ptr{S}, sym::Ptr{SymSxp})::Ptr{UnknownSxp})
 end
 getattrib(s::Ptr{S}, sym) where {S<:Sxp} = getattrib(s, sexp(SymSxp, sym))
 getattrib(r::RObject, sym) = RObject(getattrib(r.p, sym))
 
 "Set a particular attribute of an RObject"
 function setattrib!(s::Ptr{S}, sym::Ptr{SymSxp}, t::Ptr{T}) where {S<:Sxp,T<:Sxp}
-    ccall(:Rf_setAttrib, Ptr{Cvoid}, (Ptr{S}, Ptr{SymSxp}, Ptr{T}), s, sym, t)
+    @ccall Rf_setAttrib(s::Ptr{S}, sym::Ptr{SymSxp}, t::Ptr{T})::Ptr{Cvoid}
     return nothing
 end
 setattrib!(s::Ptr{S}, sym, t) where {S<:Sxp} = setattrib!(s, sexp(SymSxp, sym), sexp(t))
@@ -505,7 +514,7 @@ setnames!(r::RObject, n) = RObject(setnames!(sexp(r), sexp(StrSxp, n)))
 Returns the class of an R object.
 """
 function getclass(s::Ptr{S}, singleString::Bool = false) where {S<:Sxp}
-    ccall(:R_data_class, Ptr{StrSxp}, (Ptr{S}, Cint), s, singleString)
+    return @ccall R_data_class(s::Ptr{S}, singleString::Cint)::Ptr{StrSxp}
 end
 getclass(s::Ptr{CharSxp}, singleString::Bool = false) = Const.NilValue
 getclass(r::RObject, singleString::Bool = false) = RObject(getclass(sexp(r), singleString))
@@ -517,12 +526,14 @@ Set the class of an R object.
 setclass!(s::Ptr{S}, c::Ptr{StrSxp}) where {S<:Sxp} = setattrib!(s, Const.ClassSymbol, c)
 setclass!(r::RObject, c) = RObject(setclass!(sexp(r)), sexp(StrSxp, c))
 
-function coerceVector(r::Ptr{S}, ::Type{T}) where {S<:Sxp,T<:Sxp}
-    return ccall(:Rf_coerceVector, Ptr{T}, (Ptr{S}, Cint), r, sexpnum(T))
+function coerceVector(r::Ptr{S}, ::Type{T})::Ptr{T} where {S<:Sxp,T<:Sxp}
+    return @ccall Rf_coerceVector(r::Ptr{S}, sexpnum(T)::Cint)::Ptr{T}
 end
-allocList(n::Int) = ccall(:Rf_allocList, Ptr{ListSxp}, (Cint,), n)
-allocArray(::Type{S}, n::Integer) where {S<:Sxp} =
-    ccall(:Rf_allocVector, Ptr{S}, (Cint, Cptrdiff_t), sexpnum(S), n)
+allocList(n::Integer)::Ptr{ListSxp} = @ccall Rf_allocList(n::Cptrdiff_t)::Ptr{ListSxp}
+
+function allocArray(::Type{S}, n::Integer)::Ptr{S} where {S<:Sxp}
+    return @ccall Rf_allocVector(sexpnum(S)::Cint, n::Cptrdiff_t)::Ptr{S}
+end
 
 allocArray(::Type{S}, n1::Integer, n2::Integer) where {S<:Sxp} =
     ccall(:Rf_allocMatrix, Ptr{S}, (Cint, Cint, Cint), sexpnum(S), n1, n2)
